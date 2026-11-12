@@ -118,13 +118,19 @@ def test_inputs_match_local_backend(tmp_path, nh3_dimers):
     assert written == local
 
 
-def test_labels_feed_qcmanybody_analysis(tmp_path, nh3_dimers):
+def _core_from_document(doc):
+    return qcmanybody.ManyBodyCore(qcel_models.Molecule(**doc["molecule"]), **doc["manybody"])
+
+
+def test_document_alone_rebuilds_the_manybody_analysis(tmp_path, nh3_trimers):
     spec = _spec()
-    m = nh3_dimers[0]
+    m = nh3_trimers[0]
     InputFileBackend(tmp_path).submit([m], spec)
     doc = _document(tmp_path, m)
-    out = _core(m, spec).analyze({t["label"]: {"energy": -1.0 - 0.1 * len(t["real"])} for t in doc["tasks"]})
-    assert doc["result_key"] in out["results"]
+    assert {label for _, label, _ in _core_from_document(doc).iterate_molecules()} == _labels(m, spec)
+    fake = {t["label"]: {"energy": -1.0 - 0.1 * len(t["real"]) - 0.01 * len(t["basis"])} for t in doc["tasks"]}
+    by_doc = _core_from_document(doc).analyze(fake)["results"][doc["result_key"]]
+    assert by_doc == pytest.approx(_core(m, spec).analyze(fake)["results"][doc["result_key"]], abs=1e-12)
 
 
 def test_running_the_written_inputs_reproduces_local_backend(tmp_path, nh3_dimers):
@@ -139,7 +145,7 @@ def test_running_the_written_inputs_reproduces_local_backend(tmp_path, nh3_dimer
     for t in doc["tasks"]:
         out = qcengine.compute(t["atomic_input"], doc["program"], raise_error=True, task_config={"ncores": 1})
         energies[t["label"]] = {"energy": out.return_result}
-    by_hand = _core(m, spec).analyze(energies)["results"][doc["result_key"]]
+    by_hand = _core_from_document(doc).analyze(energies)["results"][doc["result_key"]]
 
     local = cle.LocalBackend(tmp_path / "local", ncores=1)
     local.submit([m], spec)

@@ -23,8 +23,8 @@ class InputFileBackend(Backend):
     Each multimer becomes ``<order>s/<multimer id>.json`` holding its QCManyBody sub-calculations,
     each a QCSchema ``AtomicInput`` with its label and real and basis (ghost) fragments. Run each
     ``atomic_input`` with QCEngine (``qcengine.compute(atomic_input, program)``), then pass
-    ``{label: {"energy": e}}`` to ``qcmanybody.ManyBodyCore.analyze`` and read the file's
-    ``result_key``. The manifest records the spec, the generation settings, the active multimers
+    ``{label: {"energy": e}}`` to ``ManyBodyCore(Molecule(**doc["molecule"]), **doc["manybody"])
+    .analyze`` and read the file's ``result_key``. The manifest records the spec, the generation settings, the active multimers
     and, per multimer, its order, multiplicity, lattice weight and file. Nothing is read back.
 
     Memory, cores and scratch are not part of an ``AtomicInput``; set them when running, e.g. with
@@ -68,6 +68,8 @@ class InputFileBackend(Backend):
             **manifest_entry(multimer),
             "program": spec.program,
             "bsse": spec.bsse,
+            "molecule": json.loads(multimer.to_molecule().json()),
+            "manybody": spec.manybody_kwargs(N),
             "result_key": result_key(spec, N),
             "tasks": [
                 {
