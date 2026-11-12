@@ -1,3 +1,4 @@
+import json
 from itertools import combinations
 from pathlib import Path
 
@@ -51,9 +52,10 @@ def test_submit_rejects_duplicate_ids(tmp_path, benzene):
 
 
 def test_input_backend_writes_by_id(tmp_path, benzene):
+    pytest.importorskip("qcmanybody")
     ms = cle.generate(benzene, N=2, R=6.0, verbose=0)
     InputFileBackend(tmp_path).submit(ms, SPEC)
-    assert sorted(p.stem for p in (tmp_path / "dimers").glob("*.in")) == sorted(m.id for m in ms)
+    assert sorted(p.stem for p in (tmp_path / "dimers").glob("*.json")) == sorted(m.id for m in ms)
 
 
 def test_input_backend_status_collect_not_implemented(tmp_path):
@@ -65,11 +67,13 @@ def test_input_backend_status_collect_not_implemented(tmp_path):
 
 
 def test_psi4_input_contains_tight_defaults(tmp_path, benzene):
+    pytest.importorskip("qcmanybody")
     ms = cle.generate(benzene, N=2, R=5.0, verbose=0)
     InputFileBackend(tmp_path).submit(ms[:1], SPEC)
-    text = (tmp_path / "dimers" / f"{ms[0].id}.in").read_text()
-    assert "'e_convergence': 10" in text
-    assert "'freeze_core': 'true'" in text
+    doc = json.loads((tmp_path / "dimers" / f"{ms[0].id}.json").read_text())
+    for task in doc["tasks"]:
+        assert task["atomic_input"]["keywords"]["e_convergence"] == 10
+        assert task["atomic_input"]["keywords"]["freeze_core"] == "true"
 
 
 COCRYSTAL = Path(__file__).parents[1] / "other/salicylic_hydroxybenzamide/salicylic_hydroxybenzamide.cif"
