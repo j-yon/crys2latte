@@ -12,6 +12,7 @@ from pathlib import Path
 from ...core.multimer import Multimer
 from ..results import Results, Row, Status, assemble, multimer_fields, select_active
 from ..spec import ComputeSpec
+from ..tasks import manybody_core, result_key, subcalculations
 from .base import Backend, crystalatte_version, manifest_entry
 
 _INSTALL_HINT = "LocalBackend needs qcengine and qcmanybody; install them with: pip install 'crystalatte[local]'"
@@ -83,21 +84,19 @@ class _Job:
     """Many-body bookkeeping for one multimer during a submit"""
 
     def __init__(self, multimer: Multimer, spec: ComputeSpec, task_dir: Path):
-        from qcmanybody import ManyBodyCore
-
         self.id = multimer.id
         self.N = len(multimer.monomers)
         self.task_dir = task_dir
-        self.core = ManyBodyCore(multimer.to_molecule(), **spec.manybody_kwargs(self.N))
-        self.key = f"{spec.bsse}_corrected_{self.N}_body_contribution_to_energy"
+        self.core = manybody_core(multimer, spec)
+        self.key = result_key(spec, self.N)
         self.energies: dict[str, float] = {}
         self.todo: list[tuple[str, dict]] = []
-        for _, label, mol in self.core.iterate_molecules():
-            path = task_dir / _task_name(label)
+        for task in subcalculations(self.core, spec):
+            path = task_dir / _task_name(task.label)
             if path.exists() and (done := _read_json(path))["success"]:
-                self.energies[label] = done["energy"]
+                self.energies[task.label] = done["energy"]
             else:
-                self.todo.append((label, {**spec.atomic_template(), "molecule": json.loads(mol.json())}))
+                self.todo.append((task.label, task.atomic_input))
         self.remaining = len(self.todo)
         self.failed = False
 
