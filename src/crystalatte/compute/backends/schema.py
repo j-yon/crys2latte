@@ -8,7 +8,7 @@ from ..spec import ComputeSpec
 from ..tasks import manybody_core, result_key, subcalculations
 from .base import Backend, crystalatte_version, manifest_entry
 
-_INSTALL_HINT = "InputFileBackend needs qcmanybody; install it with: pip install 'crystalatte[local]'"
+_INSTALL_HINT = "SchemaBackend needs qcmanybody; install it with: pip install 'crystalatte[local]'"
 
 
 def _write_json(path: Path, data: dict) -> None:
@@ -17,7 +17,7 @@ def _write_json(path: Path, data: dict) -> None:
     os.replace(tmp, path)
 
 
-class InputFileBackend(Backend):
+class SchemaBackend(Backend):
     """Write QCSchema inputs for the user to run, one JSON file per multimer plus a ``manifest.json``
 
     Each multimer becomes ``<order>s/<multimer id>.json`` holding its QCManyBody sub-calculations,
@@ -115,4 +115,4 @@ class InputFileBackend(Backend):
         raise NotImplementedError(_MSG)
 
 
-_MSG = "InputFileBackend only writes input files; run them yourself or use LocalBackend/FractalBackend"
+_MSG = "SchemaBackend only writes input files; run them yourself or use LocalBackend/FractalBackend"

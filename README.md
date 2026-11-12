@@ -36,7 +36,7 @@ Optional extras add the compute backends:
 
 | Extra | Installs | Needed for |
 |-------|----------|------------|
-| `local` | `qcengine`, `qcmanybody` | `LocalBackend`, `InputFileBackend` |
+| `local` | `qcengine`, `qcmanybody` | `LocalBackend`, `SchemaBackend` |
 | `fractal` | `qcportal` | `FractalBackend` |
 | `tests` | `pytest` | running the test suite |
 
@@ -108,7 +108,7 @@ Three backends run the calculations:
 |---------|---------|-------|
 | `LocalBackend` | Run every calculation on this machine through QCEngine and QCManyBody | `local` |
 | `FractalBackend` | Submit to a QCFractal server and collect from it | `fractal` |
-| `InputFileBackend` | Only write QCSchema input files (plus `manifest.json`) to run yourself; returns no results | `local` |
+| `SchemaBackend` | Only write QCSchema input files (plus `manifest.json`) to run yourself; returns no results | `local` |
 
 ```python
 import crystalatte as cle
@@ -123,7 +123,7 @@ spec = cle.ComputeSpec(
 
 backend = cle.LocalBackend("bz_run/", ncores=8)  # workdir: manifest + per-task results
 # backend = cle.FractalBackend(client, "benzene", tag="bigmem", priority="high")
-# backend = cle.InputFileBackend("inputs/")
+# backend = cle.SchemaBackend("inputs/")
 
 backend.submit(multimers, spec)
 print(backend.status())
@@ -153,7 +153,7 @@ results.table                  # per-multimer rows; results.to_dataframe() needs
 - **Resuming.** `LocalBackend` stores each finished sub-calculation in `workdir`. Rerunning with the same workdir skips completed work. Multimer ids depend on the geometry of the chosen representative, so changing the code or settings may cause work to be redone, but a result is never assigned to the wrong multimer.
 - **Workdir vs QC scratch.** `workdir` holds CrystaLattE's job state. The QC program's own scratch files are separate: pass `qc_scratch="/fast/disk"`, or leave it unset and QCEngine decides (`$QCENGINE_SCRATCH_DIRECTORY`, a `qcengine.yaml` `scratch_directory`, the program's own variable such as `$PSI_SCRATCH`, then the system temp directory). For `FractalBackend`, scratch is set in the compute manager's configuration on the workers.
 - **Scripts and parallelism.** `LocalBackend` runs calculations in worker processes. On macOS and Windows, put the code that calls it under `if __name__ == "__main__":`.
-- **Input files.** `InputFileBackend` writes one JSON file per multimer (`dimers/<id>.json`, `trimers/<id>.json`, …) and a `manifest.json`, then stops. A multimer's file holds its order, multiplicity, lattice weight, formulas, `program`, `bsse`, the whole multimer as a QCSchema `molecule`, the `manybody` settings for `ManyBodyCore`, `result_key`, and a `tasks` list with one entry per QCManyBody sub-calculation: the `label`, the `real` and `basis` (ghost) fragments, and a complete QCSchema `AtomicInput` (`atomic_input`, schema version 1) with ghost atoms already marked. The manifest records the spec, fingerprints, generation settings, active multimers and crystalatte version, and indexes each multimer's order, weight and `file`. To run a multimer by hand:
+- **QCSchema inputs.** `SchemaBackend` writes one JSON file per multimer (`dimers/<id>.json`, `trimers/<id>.json`, …) and a `manifest.json`, then stops. A multimer's file holds its order, multiplicity, lattice weight, formulas, `program`, `bsse`, the whole multimer as a QCSchema `molecule`, the `manybody` settings for `ManyBodyCore`, `result_key`, and a `tasks` list with one entry per QCManyBody sub-calculation: the `label`, the `real` and `basis` (ghost) fragments, and a complete QCSchema `AtomicInput` (`atomic_input`, schema version 1) with ghost atoms already marked. The manifest records the spec, fingerprints, generation settings, active multimers and crystalatte version, and indexes each multimer's order, weight and `file`. To run a multimer by hand:
 
   ```python
   import json, qcengine
@@ -220,7 +220,7 @@ v1's `.cle` input file and `crystalatte.py` command-line script have been remove
 | `bfs_thresh` | fixed at 1.2 × covalent radii for molecule detection |
 | `psi4_method` | `ComputeSpec(program="psi4", method=..., basis=...)` |
 | `psi4_bsse` | `ComputeSpec(bsse=...)` |
-| `psi4_memory` | `LocalBackend(memory_per_task=...)`; for `InputFileBackend`, QCEngine's `task_config` when running |
+| `psi4_memory` | `LocalBackend(memory_per_task=...)`; for `SchemaBackend`, QCEngine's `task_config` when running |
 | `cle_run_type` | choice of backend |
 
 ## Citation

@@ -17,7 +17,7 @@ dependencies:
   # tests
   - pytest
 
-  # optional: LocalBackend and InputFileBackend
+  # optional: LocalBackend and SchemaBackend
   - qcengine >=0.52
   - qcmanybody >=0.8
 

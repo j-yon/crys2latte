@@ -6,7 +6,7 @@ import numpy as np
 import pytest
 
 import crystalatte as cle
-from crystalatte.compute import ComputeSpec, InputFileBackend
+from crystalatte.compute import ComputeSpec, SchemaBackend
 from crystalatte.compute.backends.base import manifest_entry
 from crystalatte.core.multimer import Monomer, Multimer
 from crystalatte.core.sym_ops import SymOp, SymOpList
@@ -25,41 +25,41 @@ def _hand_built():
 
 def test_submit_rejects_multimers_without_generation(tmp_path):
     with pytest.raises(ValueError, match="crystalatte.generate"):
-        InputFileBackend(tmp_path).submit([_hand_built()], SPEC)
+        SchemaBackend(tmp_path).submit([_hand_built()], SPEC)
 
 
 def test_submit_rejects_empty(tmp_path):
     with pytest.raises(ValueError, match="no multimers"):
-        InputFileBackend(tmp_path).submit([], SPEC)
+        SchemaBackend(tmp_path).submit([], SPEC)
 
 
 def test_submit_rejects_mixed_crystals(tmp_path, benzene, ammonia):
     ms = cle.generate(benzene, N=2, R=5.0, verbose=0)[:1] + cle.generate(ammonia, N=2, R=5.0, verbose=0)[:1]
     with pytest.raises(ValueError, match="fingerprint"):
-        InputFileBackend(tmp_path).submit(ms, SPEC)
+        SchemaBackend(tmp_path).submit(ms, SPEC)
 
 
 def test_submit_rejects_mixed_runs_of_one_order(tmp_path, benzene):
     ms = cle.generate(benzene, N=2, R=5.0, verbose=0)[:1] + cle.generate(benzene, N=2, R=6.0, verbose=0)[-1:]
     with pytest.raises(ValueError, match="different generate"):
-        InputFileBackend(tmp_path).submit(ms, SPEC)
+        SchemaBackend(tmp_path).submit(ms, SPEC)
 
 
 def test_submit_rejects_duplicate_ids(tmp_path, benzene):
     m = cle.generate(benzene, N=2, R=5.0, verbose=0)[0]
     with pytest.raises(ValueError, match=m.id):
-        InputFileBackend(tmp_path).submit([m, m], SPEC)
+        SchemaBackend(tmp_path).submit([m, m], SPEC)
 
 
 def test_input_backend_writes_by_id(tmp_path, benzene):
     pytest.importorskip("qcmanybody")
     ms = cle.generate(benzene, N=2, R=6.0, verbose=0)
-    InputFileBackend(tmp_path).submit(ms, SPEC)
+    SchemaBackend(tmp_path).submit(ms, SPEC)
     assert sorted(p.stem for p in (tmp_path / "dimers").glob("*.json")) == sorted(m.id for m in ms)
 
 
 def test_input_backend_status_collect_not_implemented(tmp_path):
-    b = InputFileBackend(tmp_path)
+    b = SchemaBackend(tmp_path)
     with pytest.raises(NotImplementedError):
         b.status()
     with pytest.raises(NotImplementedError):
@@ -69,7 +69,7 @@ def test_input_backend_status_collect_not_implemented(tmp_path):
 def test_psi4_input_contains_tight_defaults(tmp_path, benzene):
     pytest.importorskip("qcmanybody")
     ms = cle.generate(benzene, N=2, R=5.0, verbose=0)
-    InputFileBackend(tmp_path).submit(ms[:1], SPEC)
+    SchemaBackend(tmp_path).submit(ms[:1], SPEC)
     doc = json.loads((tmp_path / "dimers" / f"{ms[0].id}.json").read_text())
     for task in doc["tasks"]:
         assert task["atomic_input"]["keywords"]["e_convergence"] == 10

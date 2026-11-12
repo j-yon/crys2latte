@@ -1,6 +1,6 @@
 from .base import Backend
 from .fractal import FractalBackend
-from .inputs import InputFileBackend
 from .local import LocalBackend
+from .schema import SchemaBackend
 
-__all__ = ["Backend", "FractalBackend", "InputFileBackend", "LocalBackend"]
+__all__ = ["Backend", "FractalBackend", "LocalBackend", "SchemaBackend"]

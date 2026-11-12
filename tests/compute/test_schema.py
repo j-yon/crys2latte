@@ -4,7 +4,7 @@ import json
 import pytest
 
 import crystalatte as cle
-from crystalatte.compute import ComputeSpec, InputFileBackend
+from crystalatte.compute import ComputeSpec, SchemaBackend
 
 qcmanybody = pytest.importorskip("qcmanybody")
 qcel_models = pytest.importorskip("qcelemental.models")
@@ -41,7 +41,7 @@ def _document(path, multimer):
 
 
 def test_writes_one_json_per_multimer_and_a_manifest(tmp_path, nh3_dimers, nh3_trimers):
-    InputFileBackend(tmp_path).submit(nh3_dimers + nh3_trimers, _spec())
+    SchemaBackend(tmp_path).submit(nh3_dimers + nh3_trimers, _spec())
     assert sorted(p.stem for p in (tmp_path / "dimers").glob("*.json")) == sorted(m.id for m in nh3_dimers)
     assert sorted(p.stem for p in (tmp_path / "trimers").glob("*.json")) == sorted(m.id for m in nh3_trimers)
     assert sorted(p.name for p in tmp_path.iterdir()) == ["dimers", "manifest.json", "trimers"]
@@ -49,13 +49,13 @@ def test_writes_one_json_per_multimer_and_a_manifest(tmp_path, nh3_dimers, nh3_t
 
 
 def test_str_output_dir_accepted(tmp_path, nh3_dimers):
-    InputFileBackend(str(tmp_path)).submit(nh3_dimers[:1], _spec())
+    SchemaBackend(str(tmp_path)).submit(nh3_dimers[:1], _spec())
     assert (tmp_path / "dimers" / f"{nh3_dimers[0].id}.json").exists()
 
 
 def test_document_has_one_task_per_subcalculation(tmp_path, nh3_trimers):
     spec = _spec()
-    InputFileBackend(tmp_path).submit(nh3_trimers, spec)
+    SchemaBackend(tmp_path).submit(nh3_trimers, spec)
     for m in nh3_trimers:
         doc = _document(tmp_path, m)
         assert {t["label"] for t in doc["tasks"]} == _labels(m, spec)
@@ -66,7 +66,7 @@ def test_document_has_one_task_per_subcalculation(tmp_path, nh3_trimers):
 
 def test_document_describes_the_multimer(tmp_path, nh3_dimers):
     spec = _spec(bsse="nocp")
-    InputFileBackend(tmp_path).submit(nh3_dimers[:1], spec)
+    SchemaBackend(tmp_path).submit(nh3_dimers[:1], spec)
     m = nh3_dimers[0]
     doc = _document(tmp_path, m)
     assert doc["id"] == m.id
@@ -78,7 +78,7 @@ def test_document_describes_the_multimer(tmp_path, nh3_dimers):
 
 def test_tasks_are_valid_atomic_inputs(tmp_path, nh3_dimers):
     spec = ComputeSpec(program="psi4", method="mp2", basis="cc-pvdz", keywords={"scf_type": "pk"})
-    InputFileBackend(tmp_path).submit(nh3_dimers[:1], spec)
+    SchemaBackend(tmp_path).submit(nh3_dimers[:1], spec)
     for t in _document(tmp_path, nh3_dimers[0])["tasks"]:
         inp = qcel_models.AtomicInput(**t["atomic_input"])
         assert t["atomic_input"]["schema_name"] == "qcschema_input"
@@ -88,7 +88,7 @@ def test_tasks_are_valid_atomic_inputs(tmp_path, nh3_dimers):
 
 
 def test_counterpoise_tasks_carry_ghost_atoms(tmp_path, nh3_dimers):
-    InputFileBackend(tmp_path).submit(nh3_dimers[:1], _spec(bsse="cp"))
+    SchemaBackend(tmp_path).submit(nh3_dimers[:1], _spec(bsse="cp"))
     tasks = _document(tmp_path, nh3_dimers[0])["tasks"]
     ghosted = [t for t in tasks if len(t["basis"]) > len(t["real"])]
     assert ghosted
@@ -100,7 +100,7 @@ def test_counterpoise_tasks_carry_ghost_atoms(tmp_path, nh3_dimers):
 
 @pytest.mark.parametrize("program", ["psi4", "nwchem", "qchem", "rdkit"])
 def test_any_program_is_written_without_it_installed(tmp_path, nh3_dimers, program):
-    InputFileBackend(tmp_path).submit(nh3_dimers[:1], _spec(program))
+    SchemaBackend(tmp_path).submit(nh3_dimers[:1], _spec(program))
     assert _document(tmp_path, nh3_dimers[0])["program"] == program
 
 
@@ -109,7 +109,7 @@ def test_inputs_match_local_backend(tmp_path, nh3_dimers):
 
     spec = ComputeSpec(program="psi4", method="hf", basis="sto-3g")
     m = nh3_dimers[0]
-    InputFileBackend(tmp_path).submit([m], spec)
+    SchemaBackend(tmp_path).submit([m], spec)
     def canonical(atomic_input):
         return json.loads(qcel_models.AtomicInput(**atomic_input).json())
 
@@ -125,7 +125,7 @@ def _core_from_document(doc):
 def test_document_alone_rebuilds_the_manybody_analysis(tmp_path, nh3_trimers):
     spec = _spec()
     m = nh3_trimers[0]
-    InputFileBackend(tmp_path).submit([m], spec)
+    SchemaBackend(tmp_path).submit([m], spec)
     doc = _document(tmp_path, m)
     assert {label for _, label, _ in _core_from_document(doc).iterate_molecules()} == _labels(m, spec)
     fake = {t["label"]: {"energy": -1.0 - 0.1 * len(t["real"]) - 0.01 * len(t["basis"])} for t in doc["tasks"]}
@@ -139,7 +139,7 @@ def test_running_the_written_inputs_reproduces_local_backend(tmp_path, nh3_dimer
         pytest.skip("psi4 is not installed")
     spec = ComputeSpec(program="psi4", method="hf", basis="sto-3g")
     m = nh3_dimers[0]
-    InputFileBackend(tmp_path / "inputs").submit([m], spec)
+    SchemaBackend(tmp_path / "inputs").submit([m], spec)
     doc = _document(tmp_path / "inputs", m)
     energies = {}
     for t in doc["tasks"]:
@@ -154,7 +154,7 @@ def test_running_the_written_inputs_reproduces_local_backend(tmp_path, nh3_dimer
 
 def test_manifest_records_run(tmp_path, nh3_dimers):
     spec = _spec()
-    InputFileBackend(tmp_path).submit(nh3_dimers, spec)
+    SchemaBackend(tmp_path).submit(nh3_dimers, spec)
     manifest = _manifest(tmp_path)
     assert manifest["program"] == "psi4"
     assert manifest["spec_fingerprint"] == spec.fingerprint()
@@ -174,24 +174,24 @@ def test_manifest_records_run(tmp_path, nh3_dimers):
 
 
 def test_resubmitting_another_order_extends_the_manifest(tmp_path, nh3_dimers, nh3_trimers):
-    InputFileBackend(tmp_path).submit(nh3_dimers, _spec())
-    InputFileBackend(tmp_path).submit(nh3_trimers, _spec())
+    SchemaBackend(tmp_path).submit(nh3_dimers, _spec())
+    SchemaBackend(tmp_path).submit(nh3_trimers, _spec())
     manifest = _manifest(tmp_path)
     assert set(manifest["active"]) == {"2", "3"}
     assert set(manifest["multimers"]) == {m.id for m in nh3_dimers + nh3_trimers}
 
 
 def test_resubmitting_other_spec_into_same_dir_raises(tmp_path, nh3_dimers):
-    InputFileBackend(tmp_path).submit(nh3_dimers, _spec("psi4"))
+    SchemaBackend(tmp_path).submit(nh3_dimers, _spec("psi4"))
     with pytest.raises(ValueError, match="spec"):
-        InputFileBackend(tmp_path).submit(nh3_dimers, _spec("nwchem"))
+        SchemaBackend(tmp_path).submit(nh3_dimers, _spec("nwchem"))
 
 
 def test_resubmitting_other_crystal_into_same_dir_raises(tmp_path, nh3_dimers, benzene):
-    InputFileBackend(tmp_path).submit(nh3_dimers, _spec())
+    SchemaBackend(tmp_path).submit(nh3_dimers, _spec())
     with pytest.raises(ValueError, match="crystal fingerprint"):
-        InputFileBackend(tmp_path).submit(cle.generate(benzene, N=2, R=4.0, verbose=0), _spec())
+        SchemaBackend(tmp_path).submit(cle.generate(benzene, N=2, R=4.0, verbose=0), _spec())
 
 
 def test_backend_exported_from_package():
-    assert cle.InputFileBackend is InputFileBackend
+    assert cle.SchemaBackend is SchemaBackend
