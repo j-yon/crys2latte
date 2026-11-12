@@ -36,7 +36,7 @@ Optional extras add the compute backends:
 
 | Extra | Installs | Needed for |
 |-------|----------|------------|
-| `local` | `qcengine`, `qcmanybody` | `LocalBackend`; `InputFileBackend` for programs other than Psi4 |
+| `local` | `qcengine`, `qcmanybody` | `LocalBackend`, `InputFileBackend` |
 | `fractal` | `qcportal` | `FractalBackend` |
 | `tests` | `pytest` | running the test suite |
 
@@ -108,7 +108,7 @@ Three backends run the calculations:
 |---------|---------|-------|
 | `LocalBackend` | Run every calculation on this machine through QCEngine and QCManyBody | `local` |
 | `FractalBackend` | Submit to a QCFractal server and collect from it | `fractal` |
-| `InputFileBackend` | Only write input files (plus `manifest.json`) to run yourself; returns no results | none for Psi4; `local` for other programs |
+| `InputFileBackend` | Only write QCSchema input files (plus `manifest.json`) to run yourself; returns no results | `local` |
 
 ```python
 import crystalatte as cle
@@ -153,10 +153,26 @@ results.table                  # per-multimer rows; results.to_dataframe() needs
 - **Resuming.** `LocalBackend` stores each finished sub-calculation in `workdir`. Rerunning with the same workdir skips completed work. Multimer ids depend on the geometry of the chosen representative, so changing the code or settings may cause work to be redone, but a result is never assigned to the wrong multimer.
 - **Workdir vs QC scratch.** `workdir` holds CrystaLattE's job state. The QC program's own scratch files are separate: pass `qc_scratch="/fast/disk"`, or leave it unset and QCEngine decides (`$QCENGINE_SCRATCH_DIRECTORY`, a `qcengine.yaml` `scratch_directory`, the program's own variable such as `$PSI_SCRATCH`, then the system temp directory). For `FractalBackend`, scratch is set in the compute manager's configuration on the workers.
 - **Scripts and parallelism.** `LocalBackend` runs calculations in worker processes. On macOS and Windows, put the code that calls it under `if __name__ == "__main__":`.
-- **Input files.** `InputFileBackend` writes files and a `manifest.json`, then stops. Psi4 gets one file per multimer (`dimers/<id>.in`), since Psi4's own many-body driver does the counterpoise splitting. Every other program uses QCEngine's input builder, which writes single-point inputs only, so each multimer becomes one input per QCManyBody sub-calculation (`dimers/<id>/real-2_basis-1-2/…`). The manifest records the spec, generation settings and crystalatte version. For each multimer it records the order, multiplicity, lattice weight and files. For sub-calculations it also records the QCManyBody label, the real and ghost fragments, and the command QCEngine would run. To assemble a multimer, feed your energies to `qcmanybody.ManyBodyCore(...).analyze({label: {"energy": e}})` and take `<bsse>_corrected_<N>_body_contribution_to_energy`. Multiply by the weight and sum for the lattice energy (×2625.4996 for kJ/mol).
-  - Counterpoise sub-calculations need ghost atoms, which QCEngine's builders are only verified to write for NWChem and Molpro (Q-Chem's drops them; GAMESS's refuses them). For other programs use `bsse="nocp"`.
-  - Programs QCEngine cannot write inputs for (e.g. RDKit, ML potentials) raise an error pointing to `LocalBackend`. Some builders (CFOUR, MRChem, Turbomole) need the program installed where the files are generated.
-  - `memory` takes GiB or a string like `"8 GB"`. If unset for QCEngine-built inputs, the memory detected on the machine writing the files is used.
+- **Input files.** `InputFileBackend` writes one JSON file per multimer (`dimers/<id>.json`, `trimers/<id>.json`, …) and a `manifest.json`, then stops. A multimer's file holds its order, multiplicity, lattice weight, formulas, `program`, `bsse`, the whole multimer as a QCSchema `molecule`, the `manybody` settings for `ManyBodyCore`, `result_key`, and a `tasks` list with one entry per QCManyBody sub-calculation: the `label`, the `real` and `basis` (ghost) fragments, and a complete QCSchema `AtomicInput` (`atomic_input`, schema version 1) with ghost atoms already marked. The manifest records the spec, fingerprints, generation settings, active multimers and crystalatte version, and indexes each multimer's order, weight and `file`. To run a multimer by hand:
+
+  ```python
+  import json, qcengine
+  from qcelemental.models import Molecule
+  from qcmanybody import ManyBodyCore
+
+  doc = json.load(open("inputs/dimers/<id>.json"))
+  energies = {
+      t["label"]: {"energy": qcengine.compute(t["atomic_input"], doc["program"],
+                                              task_config={"ncores": 4, "memory": 8}).return_result}
+      for t in doc["tasks"]
+  }
+  core = ManyBodyCore(Molecule(**doc["molecule"]), **doc["manybody"])
+  energy = core.analyze(energies)["results"][doc["result_key"]]
+  ```
+
+  Each task is an independent single-point, so they can be spread over a cluster (e.g. `qcengine run psi4 task.json`). Multiply each multimer's energy by its weight and sum for the lattice energy (×2625.4996 for kJ/mol).
+  - Any QCEngine program works, and it need not be installed where the files are written.
+  - Memory, cores and scratch are not part of an `AtomicInput`; set them when running, e.g. through QCEngine's `task_config`.
 
 ## Disordered crystals
 
@@ -204,7 +220,7 @@ v1's `.cle` input file and `crystalatte.py` command-line script have been remove
 | `bfs_thresh` | fixed at 1.2 × covalent radii for molecule detection |
 | `psi4_method` | `ComputeSpec(program="psi4", method=..., basis=...)` |
 | `psi4_bsse` | `ComputeSpec(bsse=...)` |
-| `psi4_memory` | `LocalBackend(memory_per_task=...)` / `InputFileBackend(memory=...)` |
+| `psi4_memory` | `LocalBackend(memory_per_task=...)`; for `InputFileBackend`, QCEngine's `task_config` when running |
 | `cle_run_type` | choice of backend |
 
 ## Citation

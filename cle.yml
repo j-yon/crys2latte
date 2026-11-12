@@ -17,7 +17,7 @@ dependencies:
   # tests
   - pytest
 
-  # optional: LocalBackend, and InputFileBackend for programs other than Psi4
+  # optional: LocalBackend and InputFileBackend
   - qcengine >=0.52
   - qcmanybody >=0.8
 
