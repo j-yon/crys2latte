@@ -18,6 +18,7 @@ ORTHO = (90.0, 90.0, 90.0)
 SCREW_B = SymOp.from_components(
     np.diag([-1, 1, -1]).astype(np.int16), np.array([0, 6, 0], dtype=np.int16)
 )
+INVERSION = SymOp.from_components(np.diag([-1, -1, -1]).astype(np.int16), np.zeros(3, dtype=np.int16))
 
 
 def _crystal(vectors, symbols, positions, ops=()) -> Crystal:
@@ -51,6 +52,20 @@ def test_edge_fragment_is_dropped_when_rounding_would_split_its_site():
         (10.0, 10.0, 10.0), ["C", "O"], [[0.0015, 0.5, 0.5], [0.8815, 0.5, 0.5]]
     )
     assert [sorted(r.symbols) for r in crystal.get_references()] == [["C", "O"]]
+
+
+def test_centrosymmetric_molecule_longer_than_the_cell_is_built_whole():
+    # a 6-C chain at 45 deg about the inversion centre (1/2, 1/2, 1/2) spans y = -0.16 to 1.16, longer than b;
+    # its b-images are 2.8 A apart, so it is finite. The third ASU atom is the other half's end, given as its
+    # wrapped inversion image (as pymatgen's CifWriter writes ASUs), so no copy of the chain is whole unless
+    # symmetry images are wrapped into the cell before the -1..1 translations
+    crystal = _crystal(
+        (10.0, 4.0, 10.0),
+        ["C", "C", "C"],
+        [[0.55303, 0.63258, 0.5], [0.65910, 0.89775, 0.5], [0.23483, 0.83709, 0.5]],
+        [INVERSION],
+    )
+    assert [r.symbols for r in crystal.get_references()] == [["C"] * 6]
 
 
 def test_one_orbit_gives_one_reference_when_rounding_would_split_its_centroid():

@@ -275,13 +275,14 @@ class Crystal:
         """
         all_symbols, all_frac = [], []
 
-        # build 3x3x3 supercell of ASU images to ensure at least one complete molecule is captured
+        # build 3x3x3 supercell of ASU images to ensure at least one complete molecule is captured; each image
+        # is wrapped into the cell first, so the supercell spans [-1, 2) whichever equivalent ASU the CIF lists
         for d in product(range(-1, 2), repeat=3):
             translation = np.array(d)
             for symop in self._space_group.sym_ops:
                 for atom, pos in zip(self._asu.atoms, self._asu.positions):
                     all_symbols.append(atom)
-                    all_frac.append(symop.apply(pos) + translation)
+                    all_frac.append(symop.apply(pos) % 1.0 + translation)
 
         all_frac = np.array(all_frac)
         all_symbols = np.array(all_symbols)
