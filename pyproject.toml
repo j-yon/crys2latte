@@ -14,7 +14,7 @@ dependencies = [
     "spglib",
     "tqdm",
 ]
-requires-python = ">=3.13"
+requires-python = ">=3.12"
 authors = [
     {name = "Jaden Yon", email = "jyon7@gatech.edu"},
     {name = "Carlos Borca", email = "carlosborca@gmail.com"},
