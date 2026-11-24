@@ -1,5 +1,5 @@
 include LICENSE
 include MANIFEST.in
 
-graft crystalatte
+graft src/crystalatte
 global-exclude *.py[cod] __pycache__ *.so
